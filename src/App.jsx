@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Truck, MapPin, Clock, Package, CheckCircle, User, LogOut, Plus, Trash2, List, Shield, AlertTriangle, ArrowRight, RotateCcw, Download, ChevronRight, UserPlus, Check, X, ArrowLeft, Calendar, Filter, Menu, Edit, RefreshCw, ArrowRightLeft, Bell, Smartphone, DownloadCloud } from 'lucide-react';
 
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getDatabase, ref, onValue, set, update, remove } from "firebase/database";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyD1An_fN5nk0ZpfANTL_6h1zzKXYa6OiPs",
   authDomain: "hwt-app-fcd56.firebaseapp.com",
@@ -16,146 +13,152 @@ const firebaseConfig = {
   appId: "1:697712630635:web:ee0edaeff5d71e72644a2e"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-let messaging = null;
-try {
-  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "본인의_apiKey") {
-    const app = initializeApp(firebaseConfig);
-    messaging = getMessaging(app);
-  }
-} catch (error) {
-  console.error("Firebase 초기화 에러:", error);
-}
-
-// --- 유틸리티 함수 (날짜 포맷) ---
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${month}/${day} ${hours}:${minutes}`; 
-};
-
-// --- 로고 컴포넌트 ---
-const LogoSVG = ({ className = "h-10 w-auto shrink-0" }) => (
-  <svg className={className} viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
-    <g transform="translate(-3, 0)">
-      <polygon points="54,21 98,65 98,95 54,51" fill="#1b3687" />
-      <rect x="54" y="102" width="6" height="25" fill="#d19f1f" />
-    </g>
-    <g transform="translate(3, 0)">
-      <polygon points="102,65 114,53 114,83 102,95" fill="#606265" />
-      <polygon points="118,49 130,37 130,67 118,79" fill="#606265" />
-      <polygon points="134,33 146,21 146,51 134,63" fill="#606265" />
-      <rect x="140" y="102" width="6" height="25" fill="#d19f1f" />
-    </g>
-    <text x="98" y="126" fontFamily="Arial, sans-serif" fontWeight="900" fontStyle="italic" fontSize="30" fill="#8e9094" letterSpacing="-0.5" textAnchor="middle">HWT</text>
-    <text x="100" y="146" fontFamily="Arial, sans-serif" fontWeight="bold" fontStyle="italic" fontSize="11" fill="#4a4a4a" textAnchor="middle">Hyun woo Transport</text>
-  </svg>
-);
-
-// --- 군대 계급장 컴포넌트 ---
-const RankThreeStars = () => (
-  <div className="flex items-center gap-[2px] mr-1.5 bg-[#1e293b] border border-[#0f172a] px-1.5 py-1 rounded-md shadow-md relative overflow-hidden shrink-0" title="3스타 (중장)">
-    <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
-    {[1,2,3].map(i => (
-      <svg key={i} width="12" height="12" viewBox="0 0 24 24" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] relative z-10 md:w-3.5 md:h-3.5">
-        <defs>
-          <linearGradient id={`gold-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FEF08A" />
-            <stop offset="40%" stopColor="#EAB308" />
-            <stop offset="100%" stopColor="#854D0E" />
-          </linearGradient>
-        </defs>
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill={`url(#gold-grad-${i})`} stroke="#422006" strokeWidth="0.5"/>
-      </svg>
-    ))}
-  </div>
-);
-
-const RankCaptain = () => (
-  <div className="flex items-center gap-[2px] mr-1.5 bg-[#1e293b] border border-[#0f172a] px-1.5 py-1 rounded-md shadow-md relative overflow-hidden shrink-0" title="대위">
-    <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
-    {[1,2,3].map(i => (
-      <svg key={i} width="10" height="12" viewBox="0 0 24 24" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] relative z-10 md:w-3 md:h-3.5">
-        <defs>
-          <linearGradient id={`silver-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#F8FAFC" />
-            <stop offset="40%" stopColor="#94A3B8" />
-            <stop offset="100%" stopColor="#334155" />
-          </linearGradient>
-        </defs>
-        <polygon points="12 2 20 12 12 22 4 12" fill={`url(#silver-grad-${i})`} stroke="#0F172A" strokeWidth="0.5"/>
-      </svg>
-    ))}
-  </div>
-);
+const db = getDatabase(app);
 
 export default function App() {
-  const [userType, setUserType] = useState(null); 
+  // --- Firebase에서 실시간으로 받아올 데이터 (초기값 빈 배열) ---
+  const [drivers, setDrivers] = useState([]);
+  const [pendingDrivers, setPendingDrivers] = useState([]);
+  const [orders, setOrders] = useState([]);
+
+  // --- 로그인/사용자 상태 ---
+  const [userType, setUserType] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dispatch'); 
-  const [isRefreshing, setIsRefreshing] = useState(false); 
-  
-  // --- 공통 모달(팝업) 상태 관리 ---
+  const [activeTab, setActiveTab] = useState('dispatch');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // --- 공통 모달(팝업) 상태 ---
   const [modal, setModal] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
   const showAlert = (message) => setModal({ isOpen: true, type: 'alert', message, onConfirm: null });
   const showConfirm = (message, onConfirm) => setModal({ isOpen: true, type: 'confirm', message, onConfirm });
   const closeModal = () => setModal({ isOpen: false, type: 'alert', message: '', onConfirm: null });
 
-  // --- 모달 엔터키(Enter) 확인 처리 ---
+  // --- Firebase 실시간 리스너 (앱 시작 시 한 번만 실행) ---
+  useEffect(() => {
+    const unsubscribeDrivers = onValue(ref(db, 'drivers'), (snapshot) => {
+      const data = snapshot.val();
+      setDrivers(data ? Object.values(data) : []);
+    });
+    const unsubscribePending = onValue(ref(db, 'pendingDrivers'), (snapshot) => {
+      const data = snapshot.val();
+      setPendingDrivers(data ? Object.values(data) : []);
+    });
+    const unsubscribeOrders = onValue(ref(db, 'orders'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.values(data).sort((a, b) => b.id - a.id);
+        setOrders(list);
+      } else {
+        setOrders([]);
+      }
+    });
+
+    return () => {
+      unsubscribeDrivers();
+      unsubscribePending();
+      unsubscribeOrders();
+    };
+  }, []);
+
+  // --- 모달 엔터키 처리 ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (modal.isOpen && e.key === 'Enter') {
-        e.preventDefault(); 
+        e.preventDefault();
         if (modal.onConfirm) modal.onConfirm();
         closeModal();
       }
     };
-    
     if (modal.isOpen) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [modal]);
 
-  // --- 새로고침 시뮬레이션 함수 ---
+  // --- 새로고침 시뮬레이션 ---
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600); 
+    setTimeout(() => setIsRefreshing(false), 600);
   };
 
-  // --- Mock Data (기사님 데이터 유지, 테스트 배차 삭제됨) ---
-  const [drivers, setDrivers] = useState([
-    { id: 1, vehicleNumber: '울산99바5452', password: '1234', name: '김득용', phone: '010-3422-9911' },
-    { id: 2, vehicleNumber: '울산99바5450', password: '1234', name: '라기완', phone: '010-5259-5639' },
-    { id: 3, vehicleNumber: '울산99바2932', password: '1234', name: '손장열', phone: '010-5703-9229' },
-    { id: 4, vehicleNumber: '울산99바9670', password: '1234', name: '안희석', phone: '010-7688-9258' },
-    { id: 5, vehicleNumber: '경남99사2906', password: '1234', name: '한철', phone: '010-7446-0915' }
-  ]);
+  // --- 날짜 포맷 함수 ---
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month}/${day} ${hours}:${minutes}`;
+  };
 
-  const [pendingDrivers, setPendingDrivers] = useState([]);
-  const [orders, setOrders] = useState([]); // 배차 오더 리스트 초기화 (비어있음)
+  // --- 로고 컴포넌트 ---
+  const LogoSVG = ({ className = "h-10 w-auto shrink-0" }) => (
+    <svg className={className} viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(-3, 0)">
+        <polygon points="54,21 98,65 98,95 54,51" fill="#1b3687" />
+        <rect x="54" y="102" width="6" height="25" fill="#d19f1f" />
+      </g>
+      <g transform="translate(3, 0)">
+        <polygon points="102,65 114,53 114,83 102,95" fill="#606265" />
+        <polygon points="118,49 130,37 130,67 118,79" fill="#606265" />
+        <polygon points="134,33 146,21 146,51 134,63" fill="#606265" />
+        <rect x="140" y="102" width="6" height="25" fill="#d19f1f" />
+      </g>
+      <text x="98" y="126" fontFamily="Arial, sans-serif" fontWeight="900" fontStyle="italic" fontSize="30" fill="#8e9094" letterSpacing="-0.5" textAnchor="middle">HWT</text>
+      <text x="100" y="146" fontFamily="Arial, sans-serif" fontWeight="bold" fontStyle="italic" fontSize="11" fill="#4a4a4a" textAnchor="middle">Hyun woo Transport</text>
+    </svg>
+  );
 
-  // --- 1. Login Screen ---
+  // --- 군대 계급장 컴포넌트 ---
+  const RankThreeStars = () => (
+    <div className="flex items-center gap-[2px] mr-1.5 bg-[#1e293b] border border-[#0f172a] px-1.5 py-1 rounded-md shadow-md relative overflow-hidden shrink-0" title="3스타 (중장)">
+      <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+      {[1,2,3].map(i => (
+        <svg key={i} width="12" height="12" viewBox="0 0 24 24" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] relative z-10 md:w-3.5 md:h-3.5">
+          <defs>
+            <linearGradient id={`gold-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#FEF08A" />
+              <stop offset="40%" stopColor="#EAB308" />
+              <stop offset="100%" stopColor="#854D0E" />
+            </linearGradient>
+          </defs>
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill={`url(#gold-grad-${i})`} stroke="#422006" strokeWidth="0.5"/>
+        </svg>
+      ))}
+    </div>
+  );
+
+  const RankCaptain = () => (
+    <div className="flex items-center gap-[2px] mr-1.5 bg-[#1e293b] border border-[#0f172a] px-1.5 py-1 rounded-md shadow-md relative overflow-hidden shrink-0" title="대위">
+      <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+      {[1,2,3].map(i => (
+        <svg key={i} width="10" height="12" viewBox="0 0 24 24" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] relative z-10 md:w-3 md:h-3.5">
+          <defs>
+            <linearGradient id={`silver-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#F8FAFC" />
+              <stop offset="40%" stopColor="#94A3B8" />
+              <stop offset="100%" stopColor="#334155" />
+            </linearGradient>
+          </defs>
+          <polygon points="12 2 20 12 12 22 4 12" fill={`url(#silver-grad-${i})`} stroke="#0F172A" strokeWidth="0.5"/>
+        </svg>
+      ))}
+    </div>
+  );
+
+  // ==================== 로그인 화면 ====================
   const LoginScreen = () => {
     const [tab, setTab] = useState('driver');
     const [driverVehicle, setDriverVehicle] = useState('');
-    const [driverPw, setDriverPw] = useState(''); 
+    const [driverPw, setDriverPw] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
-    
     const [adminId, setAdminId] = useState('');
     const [adminPw, setAdminPw] = useState('');
-
     const [isRegistering, setIsRegistering] = useState(false);
     const [regVehicle, setRegVehicle] = useState('');
-    const [regPw, setRegPw] = useState(''); 
+    const [regPw, setRegPw] = useState('');
     const [regName, setRegName] = useState('');
     const [regPhone, setRegPhone] = useState('');
 
@@ -206,11 +209,15 @@ export default function App() {
         showAlert('이미 등록되었거나 승인 대기 중인 차량번호입니다.');
         return;
       }
-      const newDriver = { id: Date.now(), vehicleNumber: regVehicle, password: regPw, name: regName, phone: regPhone };
-      setPendingDrivers([...pendingDrivers, newDriver]);
-      showAlert(`[가입 신청 완료]\n차량번호: ${regVehicle}\n관리자에게 가입 신청이 전송되었습니다.\n승인 완료 후 접속하실 수 있습니다.`);
-      setRegVehicle(''); setRegPw(''); setRegName(''); setRegPhone('');
-      setIsRegistering(false);
+      const newId = Date.now();
+      const newDriver = { id: newId, vehicleNumber: regVehicle, password: regPw, name: regName, phone: regPhone };
+      set(ref(db, 'pendingDrivers/' + newId), newDriver)
+        .then(() => {
+          showAlert(`[가입 신청 완료]\n관리자 승인 후 접속 가능합니다.`);
+          setRegVehicle(''); setRegPw(''); setRegName(''); setRegPhone('');
+          setIsRegistering(false);
+        })
+        .catch((error) => showAlert('서버 연결 에러: ' + error.message));
     };
 
     const handleAdminLogin = () => {
@@ -308,12 +315,12 @@ export default function App() {
     );
   };
 
-  // --- 2. Driver App ---
+  // ==================== 기사 앱 ====================
   const DriverApp = () => {
     const [driverActiveTab, setDriverActiveTab] = useState('transit');
     const [pushVisible, setPushVisible] = useState(false);
     const [pushMessage, setPushMessage] = useState('');
-    
+
     const getLocalDateString = (d) => {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -323,7 +330,7 @@ export default function App() {
 
     const [driverHistoryStart, setDriverHistoryStart] = useState(() => {
       const d = new Date();
-      d.setMonth(d.getMonth() - 1); 
+      d.setMonth(d.getMonth() - 1);
       return getLocalDateString(d);
     });
     const [driverHistoryEnd, setDriverHistoryEnd] = useState(() => getLocalDateString(new Date()));
@@ -331,10 +338,8 @@ export default function App() {
     const handleDriverDateChange = (type, value) => {
       const newStart = type === 'start' ? value : driverHistoryStart;
       const newEnd = type === 'end' ? value : driverHistoryEnd;
-      
       const sDate = new Date(newStart);
       const eDate = new Date(newEnd);
-      
       if ((eDate - sDate) / (1000 * 60 * 60 * 24) > 31) {
         showAlert('운송 완료 내역 조회는 최대 1달(31일)까지만 가능합니다.');
         if (type === 'start') {
@@ -353,13 +358,13 @@ export default function App() {
       if (type === 'start') setDriverHistoryStart(value);
       else setDriverHistoryEnd(value);
     };
-    
+
     const currentYearStr = String(new Date().getFullYear());
     const transitOrders = orders.filter(o => o.driverId === currentUser.id && o.status !== 'completed').sort((a,b) => b.id - a.id);
     const completedOrders = orders.filter(o => {
       if (o.driverId !== currentUser.id || o.status !== 'completed') return false;
       const orderDate = o.loadingTime ? o.loadingTime.split(' ')[0] : '';
-      if (!orderDate.startsWith(currentYearStr)) return false; 
+      if (!orderDate.startsWith(currentYearStr)) return false;
       if (driverHistoryStart && orderDate < driverHistoryStart) return false;
       if (driverHistoryEnd && orderDate > driverHistoryEnd) return false;
       return true;
@@ -372,69 +377,48 @@ export default function App() {
     const [showPwModal, setShowPwModal] = useState(false);
     const [pwChange, setPwChange] = useState({ old: '', new: '', confirm: '' });
 
-    useEffect(() => { 
-      if (driverActiveTab === 'profile') { 
-        setTempInfo({ ...currentUser }); 
-        setEditMode(false); 
+    useEffect(() => {
+      if (driverActiveTab === 'profile') {
+        setTempInfo({ ...currentUser });
+        setEditMode(false);
         setShowPwModal(false);
         setPwChange({ old: '', new: '', confirm: '' });
-      } 
+      }
     }, [driverActiveTab, currentUser]);
 
-    // 👇 실제 파이어베이스 푸시 알림 권한 요청 및 수신 로직 (VAPID 키 적용됨!)
-    useEffect(() => {
-      const requestNotificationPermission = async () => {
-        if (!messaging) return;
-        try {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            // 발급받으신 실제 VAPID 키 적용
-            const token = await getToken(messaging, {
-              vapidKey: 'BPks7FzP29xS-_LagmoSXhJ94gXnZRRYffsBDivYR1Rhx6J7K2W4wE0ZWNHmdHMBBs4F1RaySP5k7BppggUC6m0' 
-            });
-            console.log('📱 기사님 폰 고유 번호(토큰):', token);
-            // ※ 나중에 여기서 발급된 token 값을 데이터베이스에 저장하는 로직을 추가하시면 됩니다.
-          } else {
-            console.log('알림 권한이 거부되었습니다.');
-          }
-        } catch (error) {
-          console.log('푸시 알림 설정 중 에러 발생:', error);
-        }
-      };
-
-      requestNotificationPermission();
-
-      let unsubscribe = () => {};
-      if (messaging) {
-        // 앱 화면을 켜놓고 있을 때(포그라운드) 진짜 알림이 오면 화면 상단에 팝업 띄우기
-        unsubscribe = onMessage(messaging, (payload) => {
-          setPushMessage(`[${payload.notification.title}] ${payload.notification.body}`);
-          setPushVisible(true);
-          setTimeout(() => setPushVisible(false), 5000);
-        });
-      }
-
-      return () => unsubscribe();
-    }, []);
+    // 푸시 알림 관련 코드는 FCM 도입 시 다시 구현 (현재는 주석 처리)
+    // useEffect(() => {
+    //   const requestNotificationPermission = async () => { ... };
+    //   requestNotificationPermission();
+    // }, []);
 
     const handleNextStatus = (orderId, currentStatus) => {
       if (currentStatus === 'assigned') {
         showConfirm('상차완료 하시겠습니까?', () => {
-          setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'loaded', loadedAt: new Date().toISOString() } : o));
+          update(ref(db, 'orders/' + orderId), {
+            status: 'loaded',
+            loadedAt: new Date().toISOString()
+          });
         });
       } else if (currentStatus === 'loaded') {
-        showConfirm('하차 완료 하시겠습니까?\n완료된 내역은 \'운송완료\' 탭으로 이동합니다.', () => {
-          setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'completed', completedAt: new Date().toISOString() } : o));
+        showConfirm('하차완료 하시겠습니까?', () => {
+          update(ref(db, 'orders/' + orderId), {
+            status: 'completed',
+            completedAt: new Date().toISOString()
+          });
         });
       }
     };
 
     const handleSaveInfo = () => {
-      if(!tempInfo.name || !tempInfo.phone) return showAlert('성함과 연락처는 필수입니다.');
-      setDrivers(drivers.map(d => d.id === currentUser.id ? tempInfo : d));
-      setCurrentUser(tempInfo);
-      setEditMode(false);
-      showAlert('내 정보가 성공적으로 수정되었습니다.');
+      if (!tempInfo.name || !tempInfo.phone) return showAlert('성함과 연락처는 필수입니다.');
+      update(ref(db, 'drivers/' + currentUser.id), tempInfo)
+        .then(() => {
+          setCurrentUser(tempInfo);
+          setEditMode(false);
+          showAlert('내 정보가 성공적으로 수정되었습니다.');
+        })
+        .catch((error) => showAlert('저장 실패: ' + error.message));
     };
 
     const handlePasswordSubmit = () => {
@@ -442,13 +426,16 @@ export default function App() {
       if (pwChange.new !== pwChange.confirm) return showAlert('새 비밀번호 확인이 일치하지 않습니다.');
       if (pwChange.new === currentUser.password) return showAlert('현재 사용 중인 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.');
       if (pwChange.new.length < 1) return showAlert('새로운 비밀번호를 입력해주세요.');
-      
+
       const updatedDriver = { ...currentUser, password: pwChange.new };
-      setDrivers(drivers.map(d => d.id === currentUser.id ? updatedDriver : d));
-      setCurrentUser(updatedDriver);
-      setShowPwModal(false);
-      setPwChange({ old: '', new: '', confirm: '' });
-      showAlert('비밀번호가 성공적으로 변경되었습니다.');
+      update(ref(db, 'drivers/' + currentUser.id), updatedDriver)
+        .then(() => {
+          setCurrentUser(updatedDriver);
+          setShowPwModal(false);
+          setPwChange({ old: '', new: '', confirm: '' });
+          showAlert('비밀번호가 성공적으로 변경되었습니다.');
+        })
+        .catch((error) => showAlert('비밀번호 변경 실패: ' + error.message));
     };
 
     return (
@@ -477,7 +464,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* --- 스마트폰 푸시 알림 UI (앱 실행 중일 때 뜨는 토스트 팝업) --- */}
+        {/* 푸시 알림 UI (추후 활성화) */}
         <div className={`fixed top-4 left-0 right-0 z-[100] px-4 transition-all duration-500 pointer-events-none flex justify-center ${pushVisible ? 'translate-y-0 opacity-100' : '-translate-y-24 opacity-0'}`}>
           <div className="bg-white/95 backdrop-blur-md border border-gray-200 shadow-2xl rounded-2xl p-4 w-full max-w-sm pointer-events-auto flex gap-3 items-start">
             <div className="bg-blue-600 rounded-xl p-2.5 shadow-sm shrink-0">
@@ -718,101 +705,123 @@ export default function App() {
     );
   };
 
-  // --- 3. Admin Dashboard ---
+  // ==================== 관리자 대시보드 ====================
   const AdminDashboard = () => {
-    const incompleteOrders = orders.filter(o => o.status !== 'completed');
-    const [selectedDriver, setSelectedDriver] = useState(null);
-    const [editingOrder, setEditingOrder] = useState(null);
-
-    const newLoadDayRef = useRef(null);
-    const newUnloadDayRef = useRef(null);
-    const editLoadDayRef = useRef(null);
-    const editUnloadDayRef = useRef(null);
-    
+    // --- 관리자 전용 상태 (필터, 입력값 등) ---
     const today = new Date();
     const year = today.getFullYear();
     const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
     const currentDay = String(today.getDate()).padStart(2, '0');
-    const lastDate = new Date(year, today.getMonth() + 1, 0).getDate();
 
-    const [newOrder, setNewOrder] = useState({ 
-      loadingLoc: '', loadingMonth: currentMonth, loadingDay: currentDay, loadingHour: '08', loadingMin: '00', 
-      unloadingLoc: '', unloadingMonth: currentMonth, unloadingDay: currentDay, unloadingHour: '14', unloadingMin: '00', 
-      equipment: '', productName: '', productLength: '', productWidth: '', productHeight: '', loadingManager: '', unloadingManager: '', notes: '', driverId: '' 
+    const [newOrder, setNewOrder] = useState({
+      loadingLoc: '', loadingMonth: currentMonth, loadingDay: currentDay, loadingHour: '08', loadingMin: '00',
+      unloadingLoc: '', unloadingMonth: currentMonth, unloadingDay: currentDay, unloadingHour: '14', unloadingMin: '00',
+      equipment: '', productName: '', productLength: '', productWidth: '', productHeight: '',
+      loadingManager: '', unloadingManager: '', notes: '', driverId: ''
     });
-    
-    const [filterStart, setFilterStart] = useState(`${year}-${currentMonth}-01`);
-    const [filterEnd, setFilterEnd] = useState(`${year}-${currentMonth}-${String(lastDate).padStart(2, '0')}`);
-    const [filterStatus, setFilterStatus] = useState('all');
 
-    const [historyStart, setHistoryStart] = useState(`${year}-${currentMonth}-01`);
-    const [historyEnd, setHistoryEnd] = useState(`${year}-${currentMonth}-${String(lastDate).padStart(2, '0')}`);
+    const [editingOrder, setEditingOrder] = useState(null);
+
+    // refs
+    const newLoadDayRef = useRef();
+    const newUnloadDayRef = useRef();
+    const editLoadDayRef = useRef();
+    const editUnloadDayRef = useRef();
+
+    // 필터 상태
+    const [historyStart, setHistoryStart] = useState(() => {
+      const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
+    });
+    const [historyEnd, setHistoryEnd] = useState(() => new Date().toISOString().split('T')[0]);
     const [historyDriver, setHistoryDriver] = useState('all');
 
-    const [statusStart, setStatusStart] = useState(`${year}-${currentMonth}-01`);
-    const [statusEnd, setStatusEnd] = useState(`${year}-${currentMonth}-${String(lastDate).padStart(2, '0')}`);
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [statusDriver, setStatusDriver] = useState('all');
+    const [filterStart, setFilterStart] = useState(() => {
+      const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
+    });
+    const [filterEnd, setFilterEnd] = useState(() => new Date().toISOString().split('T')[0]);
+    const [filterStatus, setFilterStatus] = useState('all');
 
+    const [statusStart, setStatusStart] = useState(() => {
+      const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
+    });
+    const [statusEnd, setStatusEnd] = useState(() => new Date().toISOString().split('T')[0]);
+    const [statusDriver, setStatusDriver] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    const [selectedDriver, setSelectedDriver] = useState(null);
+
+    const incompleteOrders = orders.filter(o => o.status !== 'completed').sort((a, b) => b.id - a.id);
+
+    // --- Firebase 쓰기 함수들 ---
     const handleAddOrder = () => {
-      if(!newOrder.loadingLoc || !newOrder.unloadingLoc || !newOrder.loadingMonth || !newOrder.loadingDay || !newOrder.unloadingMonth || !newOrder.unloadingDay || !newOrder.productName || !newOrder.equipment) {
+      if (!newOrder.loadingLoc || !newOrder.unloadingLoc || !newOrder.loadingMonth || !newOrder.loadingDay || !newOrder.unloadingMonth || !newOrder.unloadingDay || !newOrder.productName || !newOrder.equipment) {
         return showAlert('필수 항목(상/하차지, 상/하차 일시, 장비, 제품명(호선))을 모두 입력해주세요.');
       }
-      
       showConfirm('입력하신 내용으로 배차를 전송(등록)하시겠습니까?', () => {
         const formattedLoadingDate = `${year}-${String(newOrder.loadingMonth).padStart(2, '0')}-${String(newOrder.loadingDay).padStart(2, '0')}`;
         const formattedUnloadingDate = `${year}-${String(newOrder.unloadingMonth).padStart(2, '0')}-${String(newOrder.unloadingDay).padStart(2, '0')}`;
         const formattedLoadingTime = `${formattedLoadingDate} ${newOrder.loadingHour}:${newOrder.loadingMin}`;
         const formattedUnloadingTime = `${formattedUnloadingDate} ${newOrder.unloadingHour}:${newOrder.unloadingMin}`;
 
-        setOrders([{ 
-          ...newOrder, 
+        const orderId = Date.now();
+        const orderData = {
+          ...newOrder,
           loadingTime: formattedLoadingTime,
           unloadingTime: formattedUnloadingTime,
-          id: Date.now(), 
-          driverId: newOrder.driverId ? Number(newOrder.driverId) : null, 
-          status: 'assigned', 
-          loadedAt: null, 
+          id: orderId,
+          driverId: newOrder.driverId ? Number(newOrder.driverId) : null,
+          status: 'assigned',
+          loadedAt: null,
           completedAt: null,
-          assignedBy: currentUser.name 
-        }, ...orders]);
-        
-        showAlert('새로운 배차가 정상적으로 전송되었습니다.');
-        setNewOrder({ 
-          loadingLoc: '', loadingMonth: currentMonth, loadingDay: currentDay, loadingHour: '08', loadingMin: '00', 
-          unloadingLoc: '', unloadingMonth: currentMonth, unloadingDay: currentDay, unloadingHour: '14', unloadingMin: '00', 
-          equipment: '', productName: '', productLength: '', productWidth: '', productHeight: '', loadingManager: '', unloadingManager: '', notes: '', driverId: '' 
-        });
+          assignedBy: currentUser.name
+        };
+
+        set(ref(db, 'orders/' + orderId), orderData)
+          .then(() => {
+            showAlert('새로운 배차가 정상적으로 전송되었습니다.');
+            setNewOrder({
+              loadingLoc: '', loadingMonth: currentMonth, loadingDay: currentDay, loadingHour: '08', loadingMin: '00',
+              unloadingLoc: '', unloadingMonth: currentMonth, unloadingDay: currentDay, unloadingHour: '14', unloadingMin: '00',
+              equipment: '', productName: '', productLength: '', productWidth: '', productHeight: '',
+              loadingManager: '', unloadingManager: '', notes: '', driverId: ''
+            });
+          })
+          .catch((error) => showAlert('서버 전송 에러: ' + error.message));
       });
     };
 
     const openEditModal = (order) => {
       const parseTime = (timeStr) => {
-        if(!timeStr) return { m: currentMonth, d: currentDay, h: '08', min: '00' };
+        if (!timeStr) return { m: currentMonth, d: currentDay, h: '08', min: '00' };
         try {
           const [datePart, timePart] = timeStr.split(' ');
           const [, m, d] = datePart.split('-');
           const [h, min] = timePart.split(':');
           return { m, d, h, min };
-        } catch(e) {
+        } catch (e) {
           return { m: currentMonth, d: currentDay, h: '08', min: '00' };
         }
       };
       const lTime = parseTime(order.loadingTime);
       const uTime = parseTime(order.unloadingTime);
-
       setEditingOrder({
         ...order,
-        loadingMonth: lTime.m, loadingDay: lTime.d, loadingHour: lTime.h, loadingMin: lTime.min,
-        unloadingMonth: uTime.m, unloadingDay: uTime.d, unloadingHour: uTime.h, unloadingMin: uTime.min,
+        loadingMonth: lTime.m,
+        loadingDay: lTime.d,
+        loadingHour: lTime.h,
+        loadingMin: lTime.min,
+        unloadingMonth: uTime.m,
+        unloadingDay: uTime.d,
+        unloadingHour: uTime.h,
+        unloadingMin: uTime.min,
         equipment: order.equipment || '',
         driverId: order.driverId || ''
       });
     };
 
     const handleSaveEdit = () => {
-      if(!editingOrder.loadingLoc || !editingOrder.unloadingLoc || !editingOrder.loadingMonth || !editingOrder.loadingDay || !editingOrder.unloadingMonth || !editingOrder.unloadingDay || !editingOrder.productName || !editingOrder.equipment) {
-        return showAlert('필수 항목(상/하차지, 상/하차 일시, 장비, 제품명(호선))을 모두 입력해주세요.');
+      if (!editingOrder.loadingLoc || !editingOrder.unloadingLoc || !editingOrder.loadingMonth || !editingOrder.loadingDay || !editingOrder.unloadingMonth || !editingOrder.unloadingDay || !editingOrder.productName || !editingOrder.equipment) {
+        return showAlert('필수 항목을 모두 입력해주세요.');
       }
 
       const formattedLoadingDate = `${year}-${String(editingOrder.loadingMonth).padStart(2, '0')}-${String(editingOrder.loadingDay).padStart(2, '0')}`;
@@ -820,37 +829,85 @@ export default function App() {
       const formattedLoadingTime = `${formattedLoadingDate} ${editingOrder.loadingHour}:${editingOrder.loadingMin}`;
       const formattedUnloadingTime = `${formattedUnloadingDate} ${editingOrder.unloadingHour}:${editingOrder.unloadingMin}`;
 
-      const oldOrder = orders.find(o => o.id === editingOrder.id);
-      const newDriverId = editingOrder.driverId ? Number(editingOrder.driverId) : null;
-      const isReassigned = oldOrder && oldOrder.driverId !== newDriverId;
-
-      setOrders(orders.map(o => o.id === editingOrder.id ? {
-        ...o,
+      const updatedData = {
         ...editingOrder,
         loadingTime: formattedLoadingTime,
         unloadingTime: formattedUnloadingTime,
-        driverId: newDriverId,
-        ...(isReassigned ? { reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : {})
-      } : o));
+        driverId: editingOrder.driverId ? Number(editingOrder.driverId) : null
+      };
 
-      showAlert('운송 오더 내용이 성공적으로 수정되었으며, 기사님 앱에도 실시간 반영됩니다.');
-      setEditingOrder(null);
+      update(ref(db, 'orders/' + editingOrder.id), updatedData)
+        .then(() => {
+          showAlert('운송 오더 내용이 성공적으로 수정되었습니다.');
+          setEditingOrder(null);
+        })
+        .catch((error) => showAlert('수정 실패: ' + error.message));
     };
 
     const handleAdminStatusChange = (orderId, newStatus) => {
       const statusNames = { assigned: '배차 (상차 전)', loaded: '상차완료 (운송 중)', completed: '하차완료(운송완료)' };
       showConfirm(
-        <span>해당 배차의 상태를 <strong className="text-red-500 text-lg mx-1">'{statusNames[newStatus]}'</strong>(으)로 변경하시겠습니까?<br/><span className="text-[13px] text-gray-500 font-medium mt-1.5 inline-block">(상태에 맞게 처리시간이 자동으로 조정됩니다.)</span></span>, 
+        <span>해당 배차의 상태를 <strong className="text-red-500 text-lg mx-1">'{statusNames[newStatus]}'</strong>(으)로 변경하시겠습니까?<br/><span className="text-[13px] text-gray-500 font-medium mt-1.5 inline-block">(상태에 맞게 처리시간이 자동으로 조정됩니다.)</span></span>,
         () => {
-        setOrders(orders.map(o => {
-          if (o.id !== orderId) return o;
-          let newLoadedAt = o.loadedAt;
-          let newCompletedAt = o.completedAt;
-          if (newStatus === 'assigned') { newLoadedAt = null; newCompletedAt = null; } 
-          else if (newStatus === 'loaded') { newLoadedAt = newLoadedAt || new Date().toISOString(); newCompletedAt = null; } 
+          const order = orders.find(o => o.id === orderId);
+          if (!order) return;
+          let newLoadedAt = order.loadedAt;
+          let newCompletedAt = order.completedAt;
+          if (newStatus === 'assigned') { newLoadedAt = null; newCompletedAt = null; }
+          else if (newStatus === 'loaded') { newLoadedAt = newLoadedAt || new Date().toISOString(); newCompletedAt = null; }
           else if (newStatus === 'completed') { newLoadedAt = newLoadedAt || new Date().toISOString(); newCompletedAt = newCompletedAt || new Date().toISOString(); }
-          return { ...o, status: newStatus, loadedAt: newLoadedAt, completedAt: newCompletedAt };
-        }));
+
+          update(ref(db, 'orders/' + orderId), {
+            status: newStatus,
+            loadedAt: newLoadedAt,
+            completedAt: newCompletedAt
+          }).catch((error) => showAlert('상태 변경 실패: ' + error.message));
+        }
+      );
+    };
+
+    const handleDeleteOrder = (orderId) => {
+      showConfirm('해당 배차를 영구적으로 삭제하시겠습니까?', () => {
+        remove(ref(db, 'orders/' + orderId)).catch((error) => showAlert('삭제 실패: ' + error.message));
+      });
+    };
+
+    const handleAssignDriver = (orderId, newDriverId, currentDriverId) => {
+      if (!newDriverId) return;
+      if (newDriverId === 'unassign') {
+        showConfirm('해당 배차를 \'미배정\' 상태로 변경하시겠습니까?', () => {
+          update(ref(db, 'orders/' + orderId), {
+            driverId: null,
+            reassignedBy: currentUser.name,
+            reassignedAt: new Date().toISOString()
+          });
+        });
+        return;
+      }
+      const targetDriverId = Number(newDriverId);
+      const targetDriver = drivers.find(d => d.id === targetDriverId);
+      if (!targetDriver) return;
+      showConfirm(`해당 배차를 '${targetDriver.vehicleNumber}' 기사님께 이관하시겠습니까?`, () => {
+        update(ref(db, 'orders/' + orderId), {
+          driverId: targetDriverId,
+          reassignedBy: currentUser.name,
+          reassignedAt: new Date().toISOString()
+        });
+      });
+    };
+
+    const approveDriver = (driver) => {
+      set(ref(db, 'drivers/' + driver.id), driver)
+        .then(() => {
+          remove(ref(db, 'pendingDrivers/' + driver.id));
+          showAlert(`${driver.name} 기사님의 가입이 승인되었습니다.`);
+        })
+        .catch((error) => showAlert('승인 처리 중 오류: ' + error.message));
+    };
+
+    const rejectDriver = (driverId) => {
+      showConfirm('해당 가입 신청을 반려하시겠습니까?', () => {
+        remove(ref(db, 'pendingDrivers/' + driverId)).catch((error) => showAlert('반려 처리 실패: ' + error.message));
       });
     };
 
@@ -1085,7 +1142,15 @@ export default function App() {
                                    const targetDriverId = Number(e.target.value);
                                    const targetDriver = drivers.find(d => d.id === targetDriverId);
                                    showConfirm(`해당 배차를 '${targetDriver.vehicleNumber}' 기사님께 지정/이관하시겠습니까?`, () => {
-                                     setOrders(orders.map(o => o.id === order.id ? { ...o, driverId: targetDriverId, status: 'assigned', loadedAt: null, completedAt: null, reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : o));
+                                     // 이관 시 상태를 'assigned'로 초기화할지 여부는 기존 로직 유지
+                                     update(ref(db, 'orders/' + order.id), {
+                                       driverId: targetDriverId,
+                                       status: 'assigned',
+                                       loadedAt: null,
+                                       completedAt: null,
+                                       reassignedBy: currentUser.name,
+                                       reassignedAt: new Date().toISOString()
+                                     });
                                    });
                                  }}
                                  className="text-xs md:text-sm font-bold bg-gray-50 border border-gray-200 text-gray-600 px-2 py-2.5 md:py-2 rounded-lg outline-none focus:border-gray-400 cursor-pointer flex-1 md:flex-none text-center transition-colors active:bg-gray-100 truncate max-w-[140px]"
@@ -1093,7 +1158,7 @@ export default function App() {
                                  <option value="">기사 배정/이관</option>
                                  {drivers.filter(d => d.id !== order.driverId).map(d => <option key={d.id} value={d.id}>{d.vehicleNumber}</option>)}
                                </select>
-                               <button onClick={() => showConfirm('해당 배차를 삭제하시겠습니까?', () => setOrders(orders.filter(o => o.id !== order.id)))} className="text-gray-400 hover:text-red-500 p-2.5 bg-gray-50 active:scale-90 md:bg-transparent rounded-lg transition-all shrink-0" title="삭제"><Trash2 size={18}/></button>
+                               <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-2.5 bg-gray-50 active:scale-90 md:bg-transparent rounded-lg transition-all shrink-0" title="삭제"><Trash2 size={18}/></button>
                             </div>
                           </div>
                         )
@@ -1218,14 +1283,22 @@ export default function App() {
                                         if(!e.target.value) return;
                                         if(e.target.value === 'unassign') {
                                           showConfirm(`해당 배차를 '미배정' 상태로 변경하시겠습니까?`, () => {
-                                            setOrders(orders.map(o => o.id === order.id ? { ...o, driverId: null, reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : o));
+                                            update(ref(db, 'orders/' + order.id), {
+                                              driverId: null,
+                                              reassignedBy: currentUser.name,
+                                              reassignedAt: new Date().toISOString()
+                                            });
                                           });
                                           return;
                                         }
                                         const targetDriverId = Number(e.target.value);
                                         const targetDriver = drivers.find(d => d.id === targetDriverId);
                                         showConfirm(`해당 배차를 '${targetDriver.vehicleNumber}' 기사님께 이관하시겠습니까?\n(진행/완료 상태 및 기록된 시간은 그대로 유지됩니다.)`, () => {
-                                          setOrders(orders.map(o => o.id === order.id ? { ...o, driverId: targetDriverId, reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : o));
+                                          update(ref(db, 'orders/' + order.id), {
+                                            driverId: targetDriverId,
+                                            reassignedBy: currentUser.name,
+                                            reassignedAt: new Date().toISOString()
+                                          });
                                         });
                                       }}
                                       className="w-full bg-white border border-gray-300 text-gray-600 px-2 py-1.5 rounded-lg text-[11px] font-bold shadow-sm outline-none cursor-pointer focus:border-blue-500 text-center transition-colors hover:bg-gray-50 truncate"
@@ -1234,7 +1307,7 @@ export default function App() {
                                       <option value="unassign">미배정</option>
                                       {drivers.filter(d => d.id !== order.driverId).map(d => <option key={d.id} value={d.id}>{d.vehicleNumber}</option>)}
                                     </select>
-                                    <button onClick={() => showConfirm('해당 배차를 영구적으로 삭제하시겠습니까?', () => setOrders(orders.filter(o => o.id !== order.id)))} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0" title="삭제"><Trash2 size={16}/></button>
+                                    <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0" title="삭제"><Trash2 size={16}/></button>
                                   </div>
                                 </td>
                                </tr>
@@ -1250,7 +1323,7 @@ export default function App() {
 
             {activeTab === 'approvals' && (
               <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 w-full">
-                <h2 className="text-base md:text-lg font-bold text-gray-900">신규 기 가입 승인 관리</h2>
+                <h2 className="text-base md:text-lg font-bold text-gray-900">신규 기사 가입 승인 관리</h2>
                 {pendingDrivers.length === 0 ? (
                   <div className="bg-white p-10 rounded-2xl border border-gray-200 text-center text-gray-400 font-bold shadow-sm text-sm w-full">
                     현재 대기 중인 가입 신청이 없습니다.
@@ -1271,15 +1344,10 @@ export default function App() {
                            </div>
                         </div>
                         <div className="flex gap-2 w-full md:w-auto shrink-0">
-                          <button onClick={() => {
-                            setDrivers([...drivers, driver]); setPendingDrivers(pendingDrivers.filter(d=>d.id!==driver.id));
-                            showAlert(`${driver.name} 기사님의 가입이 승인되었습니다.`);
-                          }} className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-gray-900 text-white px-4 md:px-5 py-3 md:py-2.5 rounded-xl font-bold text-[15px] md:text-sm hover:bg-gray-800 active:scale-95 transition-all">
+                          <button onClick={() => approveDriver(driver)} className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-gray-900 text-white px-4 md:px-5 py-3 md:py-2.5 rounded-xl font-bold text-[15px] md:text-sm hover:bg-gray-800 active:scale-95 transition-all">
                             <Check size={16}/> 승인
                           </button>
-                          <button onClick={() => {
-                            showConfirm('해당 가입 신청을 반려하시겠습니까?', () => setPendingDrivers(pendingDrivers.filter(d=>d.id!==driver.id)));
-                          }} className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 px-4 md:px-5 py-3 md:py-2.5 rounded-xl font-bold text-[15px] md:text-sm hover:bg-gray-50 active:scale-95 transition-all">
+                          <button onClick={() => rejectDriver(driver.id)} className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 px-4 md:px-5 py-3 md:py-2.5 rounded-xl font-bold text-[15px] md:text-sm hover:bg-gray-50 active:scale-95 transition-all">
                             <X size={16}/> 반려
                           </button>
                         </div>
@@ -1432,14 +1500,22 @@ export default function App() {
                                      if(!e.target.value) return;
                                      if(e.target.value === 'unassign') {
                                        showConfirm(`해당 배차를 '미배정' 상태로 변경하시겠습니까?`, () => {
-                                         setOrders(orders.map(o => o.id === order.id ? { ...o, driverId: null, reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : o));
+                                         update(ref(db, 'orders/' + order.id), {
+                                           driverId: null,
+                                           reassignedBy: currentUser.name,
+                                           reassignedAt: new Date().toISOString()
+                                         });
                                        });
                                        return;
                                      }
                                      const targetDriverId = Number(e.target.value);
                                      const targetDriver = drivers.find(d => d.id === targetDriverId);
                                      showConfirm(`해당 배차를 '${targetDriver.vehicleNumber}' 기사님께 이관하시겠습니까?\n(진행/완료 상태 및 기록된 시간은 그대로 유지됩니다.)`, () => {
-                                       setOrders(orders.map(o => o.id === order.id ? { ...o, driverId: targetDriverId, reassignedBy: currentUser.name, reassignedAt: new Date().toISOString() } : o));
+                                       update(ref(db, 'orders/' + order.id), {
+                                         driverId: targetDriverId,
+                                         reassignedBy: currentUser.name,
+                                         reassignedAt: new Date().toISOString()
+                                       });
                                      });
                                    }}
                                    className="w-full bg-white border border-gray-300 text-gray-600 px-2 py-1.5 rounded-lg text-[11px] font-bold shadow-sm outline-none cursor-pointer focus:border-blue-500 text-center transition-colors hover:bg-gray-50 truncate"
@@ -1448,7 +1524,7 @@ export default function App() {
                                    <option value="unassign">미배정</option>
                                    {drivers.filter(d => d.id !== selectedDriver.id).map(d => <option key={d.id} value={d.id}>{d.vehicleNumber}</option>)}
                                  </select>
-                                 <button onClick={() => showConfirm('해당 배차를 영구적으로 삭제하시겠습니까?', () => setOrders(orders.filter(o => o.id !== order.id)))} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0" title="삭제"><Trash2 size={16}/></button>
+                                 <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0" title="삭제"><Trash2 size={16}/></button>
                                 </div>
                                </td>
                              </tr>
@@ -1554,7 +1630,7 @@ export default function App() {
                                 <option value="loaded">상차완료 (운송 중)</option>
                                 <option value="completed">하차완료</option>
                               </select>
-                              <button onClick={() => showConfirm('해당 배차를 삭제하시겠습니까?', () => setOrders(orders.filter(o => o.id !== order.id)))} className="text-gray-400 hover:text-red-500 p-2 md:p-2.5 bg-gray-50 md:bg-transparent rounded-lg transition-all shrink-0 ml-1" title="삭제"><Trash2 size={18}/></button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-2 md:p-2.5 bg-gray-50 md:bg-transparent rounded-lg transition-all shrink-0 ml-1" title="삭제"><Trash2 size={18}/></button>
                             </div>
                           </div>
                         )
@@ -1695,6 +1771,7 @@ export default function App() {
     );
   };
 
+  // ==================== 메인 렌더링 ====================
   return (
     <>
       {!userType && <LoginScreen />}
