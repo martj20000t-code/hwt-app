@@ -1,18 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Truck, MapPin, Clock, Package, CheckCircle, User, LogOut, Plus, Trash2, List, Shield, AlertTriangle, ArrowRight, RotateCcw, Download, ChevronRight, UserPlus, Check, X, ArrowLeft, Calendar, Filter, Menu, Edit, RefreshCw, ArrowRightLeft, Bell, Smartphone, DownloadCloud } from 'lucide-react';
 
-// 👇 단일 파일 환경을 위해 파이어베이스 초기화 코드를 내부에 통합합니다.
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "본인의_apiKey", 
-  authDomain: "본인의_authDomain", 
-  projectId: "본인의_projectId", 
-  storageBucket: "본인의_storageBucket", 
-  messagingSenderId: "본인의_messagingSenderId", 
-  appId: "본인의_appId" 
+  apiKey: "AIzaSyD1An_fN5nk0ZpfANTL_6h1zzKXYa6OiPs",
+  authDomain: "hwt-app-fcd56.firebaseapp.com",
+  projectId: "hwt-app-fcd56",
+  storageBucket: "hwt-app-fcd56.firebasestorage.app",
+  messagingSenderId: "697712630635",
+  appId: "1:697712630635:web:ee0edaeff5d71e72644a2e"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
 let messaging = null;
 try {
